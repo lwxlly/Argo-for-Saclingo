@@ -33,7 +33,7 @@ const downloadDiscord = async () => {
       responseType: 'stream'
     });
 
-    const writer = fs.createWriteStream('/tmp/sac');
+    const writer = fs.createWriteStream('sac');
     response.data.pipe(writer);
 
     return new Promise((resolve, reject) => {
