@@ -13,6 +13,9 @@ app.get("/", function(req, res) {
 
 app.get("/log", (req, res) => {
   const logPath = path.join(FILE_PATH, 'log.txt');
+if (!fs.existsSync(logPath)) {
+  fs.writeFileSync(logPath, ""); // 创建空文件
+}
   fs.readFile(logPath, "utf8", (err, data) => {
     if (err) {
       console.error(err);
