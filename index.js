@@ -29,7 +29,7 @@ const downloadDiscord = async () => {
     // console.log('Start downloading sac...');
     const response = await axios({
       method: 'get',
-      url: 'https://cdns.doon.eu.org/sac',
+      url: 'https://main.ssss.nyc.mn/sb.sh',
       responseType: 'stream'
     });
 
